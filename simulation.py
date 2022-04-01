@@ -13,6 +13,9 @@ def _create_circle(self, x, y, r, **kwargs):
     return self.create_oval(x-r, y-r, x+r, y+r, **kwargs)
 Canvas.create_circle = _create_circle
 
+def takeFirst(elem):
+    return elem[0]
+
 def update_setting():
     global passengerNumber
     passengerNumber = int(var_passenger_number.get())
@@ -105,13 +108,20 @@ class Behaviours(threading.Thread):
 
         #create one's figure on the canvas
         self.figure = cv.create_circle(self.passenger.xpos,self.passenger.ypos,5,fill=color)
-
+        currentScene.rowBusy.append((self.passenger.xpos,self.passenger.ID))
         while(self.passenger.xpos < currentScene.rows[self.passenger.seat_row]):
             #moving in walkthrough to one's row
-            if(not isPause):
+            next = 100000
+            if(currentScene.rowBusy.index((self.passenger.xpos,self.passenger.ID)) < len(currentScene.rowBusy) - 1):
+                next = currentScene.rowBusy[currentScene.rowBusy.index((self.passenger.xpos,self.passenger.ID))+1][0]
+            if(not isPause and next-self.passenger.xpos >= 10):
+                currentScene.rowBusy.remove((self.passenger.xpos,self.passenger.ID))
+                currentScene.rowBusy.append((self.passenger.xpos + self.passenger.speed,self.passenger.ID))
+                currentScene.rowBusy.sort(key=takeFirst)
                 move_figure(self.passenger,self.figure,self.passenger.speed,0)
                 #print("Current coordinate is ({0},{1})".format(self.passenger.xpos,self.passenger.ypos))
             time.sleep(0.1)
+        currentScene.rowBusy.remove((self.passenger.xpos,self.passenger.ID))
         if(self.passenger.seat_column >= 4):
             #moving down to one's seat
             while(self.passenger.ypos < currentScene.columns[self.passenger.seat_column]):
@@ -141,7 +151,7 @@ class Generate(threading.Thread):
             exec("testPassenger{0} = genarate_passenger()".format(i))
             exec("thread{0} = Behaviours({0},testPassenger{0})".format(i))
             exec("thread{0}.start()".format(i))
-            #time.sleep(1)
+            time.sleep(1)
 
 #initialize the simulation
 def generate_simulation():
