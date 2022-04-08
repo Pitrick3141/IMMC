@@ -55,7 +55,7 @@ def generate_passenger():
         row = random.randint(1,currentScene.maxRow)
         column = random.randint(1,currentScene.maxColumn)
     currentScene.seatsUsed[row][column] = True
-    weight = [random.randint(1,100),random.randint(1,100)]
+    weight = random.randint(0,2)
     randomized_passenger = People(ID,speed,rowspeed,strength,weight,(row,column),lane_start,lane)
     ID += 1
     passengers.append(randomized_passenger)
@@ -80,12 +80,38 @@ def replay():
     cv.create_image(0, 0, anchor='nw',image=image_file)
     cv.create_circle(lane_start, lane, 10, fill='yellow')
     cv.update()
+    for p in passengers:
+        (p.xpos,p.ypos) = (currentScene.lane_start,currentScene.lane)
+    threads = []
+    startTime = time.time()
+    runStartTime = time.time()
+    for i in range(len(passengers)):
+        exec("thread{0} = Behaviours({0},passengers[{0}])".format(i))
+        exec("threads.append(thread{0})".format(i))
+        exec("thread{0}.start()".format(i))
+        time.sleep(interval / playspeed)
+    for t in threads:
+       t.join()
+    endTime = time.time()
+    global totalTime
+    global runTime
+    totalTime = endTime - startTime
+    runTime = endTime - runStartTime
+    print("[Main Thread] All passengers have stopped. The simulation terminated")
+    print('-'*30)
+    print("{:30s}{:10.6f} Seconds".format("Generation Time",generationTime))
+    print("{:30s}{:10.6f} Seconds".format("Simulation Time (Actual)",runTime))
+    print("{:30s}{:10.6f} Seconds".format("Total Runtime",totalTime))
+    print("\n{:30s}{:17.2f}x".format("Playspeed",playspeed))
+    print("{:30s}{:10.6f} Seconds".format("Simulation Time (Equvalent)",runTime * playspeed))
+    
 #Settings
-passengerNumber = 10
-maxSpeed = 2
-minSpeed = 0.8
-interval = 1
-playspeed = 1
+passengerNumber = 189
+maxSpeed = 1.43
+minSpeed = 1.03
+interval = 2
+playspeed = 10
+correction = 0.05
 
 #current scene in use
 currentScene = scene1
@@ -136,17 +162,18 @@ class Behaviours(threading.Thread):
         self.threadID = threadID
         self.passenger = passenger
     def run(self):
-        print("[Thread{0}] Thread started".format(self.threadID))
+        print("[Thread{0}] Thread{0} started".format(self.threadID))
         starttime = time.time()
         #assign random color to the figure
         color = "#"+''.join([random.choice('ABCDEF0123456789') for i in range(6)])
 
         #create one's figure on the canvas
         self.figure = cv.create_circle(self.passenger.xpos,self.passenger.ypos,5,fill=color)
+        print("[Thread{0}] Thread{0} painted".format(self.threadID))
         currentScene.rowBusy.append((self.passenger.xpos,self.passenger.ID))
         while(self.passenger.xpos < currentScene.rows[self.passenger.seat_row]):
             #moving in walkthrough to one's row
-            currentSpeed = self.passenger.speed
+            currentSpeed = self.passenger.speed - 0.2 * (self.passenger.bags + 1) * playspeed
             if(self.passenger.xpos + self.passenger.speed > currentScene.rows[self.passenger.seat_row]):
                 currentSpeed = currentScene.rows[self.passenger.seat_row] - self.passenger.xpos
             next = 100000
@@ -159,6 +186,7 @@ class Behaviours(threading.Thread):
                 move_figure(self.passenger,self.figure,currentSpeed,0)
                 #print("Current coordinate is ({0},{1})".format(self.passenger.xpos,self.passenger.ypos))
             time.sleep(0.1)
+        time.sleep(self.passenger.bags * 2 / playspeed)
         #time.sleep()
         currentScene.rowBusy.remove((self.passenger.xpos,self.passenger.ID))
         currentSpeed = self.passenger.rowspeed
@@ -204,7 +232,14 @@ class Generate(threading.Thread):
             exec("thread{0} = Behaviours({0},passengers[{0}])".format(i))
             exec("threads.append(thread{0})".format(i))
             exec("thread{0}.start()".format(i))
-            time.sleep(interval / playspeed)
+            if(i % 12 == 0):
+                time.sleep(interval / playspeed)
+            elif(i % 3 == 0):
+                time.sleep(interval * 2 / playspeed)
+            elif(i % 4 == 0):
+                time.sleep(interval / 2 / playspeed) 
+            else:
+                time.sleep(interval / playspeed)         
         for t in threads:
             t.join()
         endTime = time.time()
@@ -218,7 +253,8 @@ class Generate(threading.Thread):
         print("{:30s}{:10.6f} Seconds".format("Simulation Time (Actual)",runTime))
         print("{:30s}{:10.6f} Seconds".format("Total Runtime",totalTime))
         print("\n{:30s}{:17.2f}x".format("Playspeed",playspeed))
-        print("{:30s}{:10.6f} Seconds".format("Simulation Time (Equvalent)",runTime * playspeed))
+        print("{:30s}{:17.2f}x".format("Correction factor",correction + 1))
+        print("{:30s}{:10.6f} Seconds".format("Simulation Time (Equvalent)",runTime * playspeed * (1 + correction)))
 #initialize the simulation
 def generate_simulation():
     global isPause
@@ -290,7 +326,7 @@ buttonPause = Button(frame2, text="Pause", command=pause_simulation)
 buttonPause.pack(padx=5,pady=5)
 buttonPlay = Button(frame2, text="Play", command=play_simulation)
 buttonPlay.pack(padx=5,pady=5)
-buttonReplay = Button(frame2, text="Replay", command=play_simulation)
+buttonReplay = Button(frame2, text="Replay", command=replay)
 buttonReplay.pack(padx=5,pady=5)
 buttonReset = Button(frame2, text="Reset", command=clear_simulation)
 buttonReset.pack(padx=5,pady=5)
